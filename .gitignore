@@ -34,3 +34,17 @@ vignettes/*.pdf
 # Temporary files created by R markdown
 *.utf8.md
 *.knit.md
+
+*.png
+
+*.jpg
+
+UAV photogrammetry/outputs/
+
+UAV photogrammetry/Tests/
+
+*.pdf
+
+UAV photogrammetry/calibration/scaletest/
+
+UAV photogrammetry/calibration/JPEGView64/
