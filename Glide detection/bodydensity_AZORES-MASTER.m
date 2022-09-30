@@ -497,8 +497,6 @@ hold off
 figure;
 plot(term_glide_J_max)
 median(term_glide_J_max)
-tmax=1/fluke_rate;%in seconds
-
 
 % if the tag slips 
 % %Jm = 0.0292;% in radians
@@ -524,7 +522,7 @@ tmax=1/fluke_rate;%in seconds
 
 
 Jm = 0.0059;% in radians
-tmax=1/fluke_rate;%in seconds
+tmax=2/fluke_rate;%in seconds
 [~,pry,~,GLm,KKm] = magnet_rot_sa_AB(Aw,Mw,fs,cutoff,alpha,1,k,Jm,tmax,true);
 GLm(:,1) = GLm(:,1) + (1/fluke_rate)/4; % AB - add half the fluking period to the glide start time, does not produce negatives because glides already have to be > fluke period.
 %any((sqrt((GLm(:,2)-GL(:,1)).^2) == GLm(:,2)-GLm(:,1))==false) % check for negatives
@@ -642,6 +640,8 @@ hold on
 plot(t*fs,agree_yes,'-y','Linewidth',3);
 plot(t*fs,onlym,'-m','Linewidth',3);
 plot(t*fs,onlya,'-r','Linewidth',3);
+%xline(DEPLOY.OTAB(2,1)*fs,'r-', 'Linewidth',3) % uncomment to look at slips
+%xline(DEPLOY.OTAB(2,2)*fs,'b-', 'Linewidth',3) 
 legend('Track','Agree','Only Rot' ,'Only Acc');
 
 sp2= subplot(5,1,4);
@@ -768,8 +768,8 @@ for i=1:length(SGL)
     Glide(i,23)=circ_mean(smoothheaddeg(round(cue1):round(cue2)));      % ES - changed this from "smoothhead" to "smoothheaddeg" %Mean heading (deg) calculated using circular statistics
     Glide(i,24)=1-(circ_var(smoothhead(round(cue1):round(cue2))));          %Measure of concentration (r) of heading during the sub-Glide
     Glide(i,25) = SGL(i,3); % AB - subglide index
-
 end
+
 %% 10. Calculate glide ratio
 % AB - Changed so it doesnt count glide or stroking time from excluded
 % periods, addded max_depth
@@ -794,6 +794,11 @@ for dive=  1:nnn                      % ES - changed this from "for dive=1:size(
         G_ratio(dive,10)=Bottom(dive,4)/G_ratio(dive,6);%ascent rate (m/s)
     end
 end
+
+%%  exclude dives
+G_ratio = G_ratio(G_ratio(:,13)~=12,:)
+Glide = Glide(Glide(:,16)~=12,:)
+
 %% Diagnostic Checks
 
 % AB - Create the subset of data used in the MCMC analysis.

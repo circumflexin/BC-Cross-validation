@@ -467,64 +467,46 @@ hist(max(Y),100); set(sp2,'xlim',[0 max(max(Y))]);
 %   function with n=1
 
 %%
-%Dev terminal glide detection: use this to calculate the body rotation
-%during terminal glides, as a potential minimum value for J.
-
-term_glide = [0,0]
-term_glide_J_max = []
-
-figure
-for dive=1:nnn
-AB_asc = round(fs*Bottom(dive,3)):round(fs*D(dive,2));%selects the whole ascent phase
-sp1=subplot(211); plott(p(AB_asc),fs);	% plott plots sensor data against a time axis
-pry_asc = pry(AB_asc);
-t=(0:length(pry(AB_asc))-1)/fs;
-sp2=subplot(212); plot(t,pry(AB_asc));
-linkaxes([sp1,sp2], 'x'); % links x axes;
-term_glide=ginput(2);
-term_glide(:,1) = term_glide(:,1)*fs;
-term_glide_J = pry_asc(term_glide(1,1):term_glide(2,1));
-term_glide_J = term_glide_J.^2;
-peaks = peakfinder(term_glide_J);
-term_glide_J_max(dive) = sqrt(max(term_glide_J));
-hold on;
-plot((peaks+term_glide(1,1)-1)/fs,pry_asc(round(peaks+term_glide(1,1))),'y*');
-waitforbuttonpress
-hold off
-end
-
-hold off
-figure;
-plot(term_glide_J_max)
-median(term_glide_J_max)
-tmax=1/fluke_rate;%in seconds
-
-
-% if the tag slips 
-% %Jm = 0.0292;% in radians
+% %Dev terminal glide detection: use this to calculate the body rotation
+% %during terminal glides, as a potential minimum value for J.
 % 
-% Jm1 = 0.005;% in radians
-% Aw1 = Aw(1:round(DEPLOY.OTAB(2,1)*fs),:);
-% Mw1 = Mw(1:round(DEPLOY.OTAB(2,1)*fs),:);
-% k1 = k(1:round(DEPLOY.OTAB(2,1)*fs));
+% term_glide = [0,0]
+% term_glide_J_max = []
 % 
-% Jm2 = 0.005;% in radians
-% Aw2 = Aw(round(DEPLOY.OTAB(2,2)*fs):length(Aw),:);
-% Mw2 = Mw(round(DEPLOY.OTAB(2,2)*fs):length(Aw),:);
-% k2 = k(round(DEPLOY.OTAB(2,2)*fs):length(Aw));
+% figure
+% for dive=1:nnn
+% AB_asc = round(fs*Bottom(dive,3)):round(fs*D(dive,2));%selects the whole ascent phase
+% sp1=subplot(211); plott(p(AB_asc),fs);	% plott plots sensor data against a time axis
+% pry_asc = pry(AB_asc);
+% t=(0:length(pry(AB_asc))-1)/fs;
+% sp2=subplot(212); plot(t,pry(AB_asc));
+% linkaxes([sp1,sp2], 'x'); % links x axes;
+% term_glide=ginput(2);
+% term_glide(:,1) = term_glide(:,1)*fs;
+% term_glide_J = pry_asc(term_glide(1,1):term_glide(2,1));
+% term_glide_J = term_glide_J.^2;
+% peaks = peakfinder(term_glide_J);
+% term_glide_J_max(dive) = sqrt(max(term_glide_J));
+% hold on;
+% plot((peaks+term_glide(1,1)-1)/fs,pry_asc(round(peaks+term_glide(1,1))),'y*');
+% waitforbuttonpress
+% hold off
+% end
 % 
-% [~,pry,~,~,~] = magnet_rot_sa_AB(Aw,Mw,fs,cutoff,alpha,1,k,[],[]);
-% [~,~,~,GLm1,KKm1] = magnet_rot_sa_AB(Aw1,Mw1,fs,cutoff,alpha,1,k1,Jm1,tmax);
-% [~,~,~,GLm2,KKm2] = magnet_rot_sa_AB(Aw,Mw,fs,cutoff,alpha,1,k2,Jm2,tmax);
-% KKm2 = KKm2+DEPLOY.OTAB(2,2)
-% KKm = [KKm1;KKm2]
-% GLm2 = GLm2+DEPLOY.OTAB(2,2)
-% GLm = [GLm1;GLm2]
-% 
+% hold off
+% figure;
+% plot(term_glide_J_max)
+% median(term_glide_J_max)
+
+plott(p, fs)
+xline(DEPLOY.OTAB(2,1),'r-', 'Linewidth',3)
+xline(DEPLOY.OTAB(2,2),'b-', 'Linewidth',3)
+% the slip is before only one included dive, best just to visually inspect
+% the detections
 
 
-Jm = 0.0119;% in radians
-tmax=1/fluke_rate;%in seconds
+Jm = 0.0071;% in radians
+tmax=2/fluke_rate;%in seconds
 [~,pry,~,GLm,KKm] = magnet_rot_sa_AB(Aw,Mw,fs,cutoff,alpha,1,k,Jm,tmax,true);
 GLm(:,1) = GLm(:,1) + (1/fluke_rate)/4; % AB - add half the fluking period to the glide start time, does not produce negatives because glides already have to be > fluke period.
 %any((sqrt((GLm(:,2)-GL(:,1)).^2) == GLm(:,2)-GLm(:,1))==false) % check for negatives
@@ -642,6 +624,8 @@ hold on
 plot(t*fs,agree_yes,'-y','Linewidth',3);
 plot(t*fs,onlym,'-m','Linewidth',3);
 plot(t*fs,onlya,'-r','Linewidth',3);
+xline(DEPLOY.OTAB(2,1)*fs,'r-', 'Linewidth',3)
+xline(DEPLOY.OTAB(2,2)*fs,'b-', 'Linewidth',3)
 legend('Track','Agree','Only Rot' ,'Only Acc');
 
 sp2= subplot(5,1,4);
@@ -794,6 +778,11 @@ for dive=  1:nnn                      % ES - changed this from "for dive=1:size(
         G_ratio(dive,10)=Bottom(dive,4)/G_ratio(dive,6);%ascent rate (m/s)
     end
 end
+
+%%  exclude dives
+G_ratio = G_ratio(G_ratio(:,13)~=9,:)
+Glide = Glide(Glide(:,16)~=9,:)
+
 %% Diagnostic Checks
 
 % AB - Create the subset of data used in the MCMC analysis.
@@ -834,7 +823,7 @@ yline(-Ja,'r','linewidth',3)
 
 % 11. Export csvs
 % ES - Changed from csvwrtie to dlmwrite. Do not use "csvwrite" as this reduces precision of results
-% filepath = fullfile(Glide_Sum_Dir,strcat(tag,'.csv'))
-% dlmwrite(filepath,Glide,'precision','%.7f')
-% filepath = fullfile(Glide_Ratio_Dir,strcat(tag,'.csv'))
-% dlmwrite(filepath,G_ratio,'precision','%.7f')
+filepath = fullfile(Glide_Sum_Dir,strcat(tag,'.csv'))
+dlmwrite(filepath,Glide,'precision','%.7f')
+filepath = fullfile(Glide_Ratio_Dir,strcat(tag,'.csv'))
+dlmwrite(filepath,G_ratio,'precision','%.7f')
