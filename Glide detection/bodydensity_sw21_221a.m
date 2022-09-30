@@ -1,152 +1,152 @@
-% % % % %%%Body density estimation. Japan workshop May 2016
-% % % %Lucia Martina Martin Lopez lmml2@st-andrews.ac.uk
-% % % % Edited by Eilidh Siegal, July 2017 (es250@st-andrews.ac.uk)
-% % % % All edits by ES are commented, with comments preceded by "ES - "
-% % % 
-% % % % Edited by Alec Burslem, 2019-2024 (acb35@st-andrews.ac.uk)
-% % % AB - Hardcoded accelerometer/magnetometer axes for cetaceans - to use for seals, change the dominant axis in magnet_rot_sa() and Ahf_Anlf() calls.
-% % % AB - Added calculation of glide/fluke cutoff from terminal glides
-% % % AB - Added diagnostic plots
-% % % AB - Added buffer at start of detected glides
-% % % AB - New splitGL and SWdensityFromCTD functions 
-% % % AB - Use Magnetometer method to find fluke rate
-% % % AB - Exclude foraging periods from ascent and descent phase to make glide ratio more accurate
-% % % Ab - Reordered so manual dive phase classification is done first 
-% % % AB - Version controlled repo on github: @circumflexin
-% % % AB - new magnet_rot_AB to waste fewer gliding periods
-
-clc                      
-clear           
-%% Config
-%LAT = % Latitude where CTD measurements took place
-Glide_Sum_Dir = 'D:\Data\BC_crossval\Glide_detection\Summaries\';
-Glide_Ratio_Dir =  'D:\Data\BC_crossval\Glide_detection\Ratios';
-alpha=25; %degrees, cuts off magnetometry when the sensor is too closely aligned with the earth's magnetic field
-
-%% LOAD DATA
-% Load prh
-tag='sw21_196a';                 % Insert deployment here
-settagpath('prh','D:\Raw\Azores_2021\MDTAGs\Data\D3\metadata\prh')
-loadprh(tag);
-%Load CTD
-%CTD = readtable(''); % 
-% inspect OTAB
-settagpath('cal','D:\Raw\Azores_2021\MDTAGs\Data\D3\metadata\cals')
-[CAL,DEPLOY,ufname] = d3loadcal(tag)
-DEPLOY.OTAB
-
-%% DEFINE DIVES 
-% and make a summary table describing the characteristics of each dive.
-
-% ES - used 2m as the threshold of the dive (surface) and 10m for dive definition (i.e. deep dive if below 10m)
-% as in the IgorPro FindDives.ipf provided by Tomoko Narazaki (edited last 19 May 2016)
-
-k=1:length(p);
-mindivedef = 100;                       % AB - to exclude resting dives; where bouyancy is actively maintained. 
-surface=7.5;                            % AB - increased due to longer body
-T=finddives(p,fs,mindivedef,surface); 
-D=[];                                   % [start_time(s) end_time(s) dive_duration(s) max_depth(s) max_depth(m) ID(n)]
-D(:,1)=T(:,1);                          % start time of each dive in seconds since the tag on time
-D(:,2)=T(:,2);                          % end time of each dive in seconds since the tag on time
-D(:,3)=T(:,2)-T(:,1);                   % dive duration in seconds
-D(:,4)=[T(2:end,1)-T(1:end-1,2);NaN];   % post-dive surface duration in seconds
-D(:,5)=T(:,4);                          % time of the deepest point of each dive
-D(:,6)=T(:,3);                          % maximum dive depth of each dive
-D(:,7)=1*(1:size(T,1))';                % dive ID number, starting from 1
-clear T
-
-%4_DEFINE PRECISE DESCENT AND ASCENT PHASES 
-Bottom=[];
-Phase(1:length(p))=NaN;
-DES=[];
-ASC=[];
-
-isdive = false(size(p));
-for i = 1:size(D,1); isdive(round(D(i,1)*fs):round(D(i,2)*fs)) = true; end
-pd = p; pnd = p; pd(~isdive) = nan; pnd(isdive) = nan;
-I = 1:length(p);
-figure(4); clf; 
-sp1 = subplot(5,1,1:4)
-plot(I,pd,'g'); hold on; plot(I,pnd,'r'); set(gca,'ydir','rev','ylim',[min(p) max(p)]);
-tit = title('Click within the last dive you want to use');
-legend('Dive','Not Dive','location','southeast');
-sp2=subplot(5,1,5)
-plot(I,pitch,'g');
-legend('pitch')
-x = ginput(1);
-nnn = find(D(:,1)<x(1)/fs,1,'last');
-
-for dive=1:nnn                                 % ES - Line added so as to only include until dive where clicked previously on dive profile
-    kk=round(fs*D(dive,1)):round(fs*D(dive,2)); % it is selecting the whole dive
-    %kkI = false(size(p)); kkI(kk) = true;
-      %enddes=((find((smoothpitch(kk)*180/pi)>0,1,'first')+D(dive,1)*fs));% search for the first point at which pitch is positive
-      %startasc=((find((smoothpitch(kk)*180/pi)<0,1,'last')+D(dive,1)*fs));%search for the last point at which the pitch is negative
-    %    if you want to do it manually as some times there is a small ascent
-    %     phase during the descent and a small descent phase during the ascent.
-    figure(5)
-    ax(1)=subplot(211); plott(p(kk),fs)	% plott plots sensor data against a time axis
-    title(join("Dive: "+dive))
-    ax(2)=subplot(212); plott(pitch(kk)*180/pi,fs,0)
-    linkaxes(ax, 'x'); % links x axes of the subplots for zoom/pan
-    [x,y]=ginput(2);	% click on where the pitch angle first goes to zero in the descent and last goes to zero in the ascent
-    enddes=round(x(1))*fs+D(dive,1)*fs;         % ES - changed output names and multiples by fs to get correct time frame
-    startasc=round(x(2))*fs+D(dive,1)*fs;       % ES - changed output names and multiples by fs to get correct time frame
-    Phase(kk(kk<enddes))=-1; %Descent
-    Phase(kk(kk<startasc & kk>enddes)) = 0 ; % Bottom
-    Phase(kk(kk>startasc)) = 1 ; % Ascent
-    Bottom(dive,1)=(enddes)/fs; %Time in seconds at the start of bottom phase (end of descent)
-    Bottom(dive,2)= p(enddes);% Depth in m at the start of the bottom phase (end of descent phase)
-    Bottom(dive,3)=(startasc)/fs;%Time in seconds at the end of bottom phase (start of ascent)
-    Bottom(dive,4)= p(startasc);% Depth in m at the end of the bottom phase (start of ascent phase)
-    des=round(fs*D(dive,1)):round(enddes);%selects the whole descent phase
-    asc=round(startasc):round(fs*D(dive,2));%selects the whole ascent phase
-    DES=[DES,des];                                               % Concats all descents
-    ASC=[ASC,asc];                                               % Concats all descents
-end
-pasc = p; pdes = p;
-pasc(Phase<1 | isnan(Phase)) = nan;
-pdes(Phase>-1 | isnan(Phase)) = nan;
-plot(sp1,pasc,'k'); plot(sp1,pdes,'b');
-legend('Dive','Not Dive','Ascent','Descent');
-delete(tit)
-linkaxes([sp1 sp2], 'x');
-
-dives_w_exclusions = [1,1,3,4,9,9,12]
-
-% AB - exclude any periods? This lets you exclude foraging periods on the
-% way up/down from glude:stroke ratio analyses
- for n = dives_w_exclusions % list dive IDs you want to exclude sections from, to exclude multiple sections, enter the dive twice
-     kk=round(fs*D(n,1)):round(fs*D(n,2));
-     figure(6)
-     ax(1)=subplot(211); plott(p(kk),fs)	% plott plots sensor data against a time axis
-     ax(2)=subplot(212); plott(pitch(kk)*180/pi,fs,0)
-     linkaxes(ax, 'x'); % links x axes of the subplots for zoom/pan
-     [x,y]=ginput(2);	% click on start and end of period to exclude
-     start_exc = round(x(1))*fs+D(n,1)*fs;
-     end_exc = round(x(2))*fs+D(n,1)*fs;
-  
-   Phase(kk(kk<end_exc & kk>start_exc)) = 0;
- end
-isdive = false(size(p));
-for i = 1:size(D,1); isdive(round(D(i,1)*fs):round(D(i,2)*fs)) = true; end
-pd = p; pnd = p; pd(~isdive) = nan; pnd(isdive) = nan;
-I = 1:length(p);
-figure(4); clf; 
-sp1 = subplot(5,1,1:3);
-plot(I,pd,'g'); hold on; plot(I,pnd,'r'); set(gca,'ydir','rev','ylim',[min(p) max(p)]);
-tit = title('Click within the last dive you want to use');
-legend('Dive','Not Dive','location','southeast');
-hold on
-pasc = p; pdes = p;
-pasc(Phase<1 | isnan(Phase)) = nan;
-pdes(Phase>-1 | isnan(Phase)) = nan;
-plot(pasc,'k'); plot(pdes,'b');
-legend('Dive','Not Dive','Ascent','Descent','location','southeast');
-delete(tit)
-
-%% save asc/des cues here to avoid having to repeat manual classification
-%save(fullfile("D:\Data\BC_crossval\Glide_detection\", tag))
-tag='';   
+% % % % % %%%Body density estimation. Japan workshop May 2016
+% % % % %Lucia Martina Martin Lopez lmml2@st-andrews.ac.uk
+% % % % % Edited by Eilidh Siegal, July 2017 (es250@st-andrews.ac.uk)
+% % % % % All edits by ES are commented, with comments preceded by "ES - "
+% % % % 
+% % % % % Edited by Alec Burslem, 2019-2024 (acb35@st-andrews.ac.uk)
+% % % % AB - Hardcoded accelerometer/magnetometer axes for cetaceans - to use for seals, change the dominant axis in magnet_rot_sa() and Ahf_Anlf() calls.
+% % % % AB - Added calculation of glide/fluke cutoff from terminal glides
+% % % % AB - Added diagnostic plots
+% % % % AB - Added buffer at start of detected glides
+% % % % AB - New splitGL and SWdensityFromCTD functions 
+% % % % AB - Use Magnetometer method to find fluke rate
+% % % % AB - Exclude foraging periods from ascent and descent phase to make glide ratio more accurate
+% % % % Ab - Reordered so manual dive phase classification is done first 
+% % % % AB - Version controlled repo on github: @circumflexin
+% % % % AB - new magnet_rot_AB to waste fewer gliding periods
+% 
+% clc                      
+% clear           
+% %% Config
+% %LAT = % Latitude where CTD measurements took place
+% Glide_Sum_Dir = 'D:\Data\BC_crossval\Glide_detection\Summaries\';
+% Glide_Ratio_Dir =  'D:\Data\BC_crossval\Glide_detection\Ratios';
+% alpha=25; %degrees, cuts off magnetometry when the sensor is too closely aligned with the earth's magnetic field
+% 
+% %% LOAD DATA
+% % Load prh
+% tag='sw21_221a';                 % Insert deployment here
+% settagpath('prh','D:\Raw\Azores_2021\MDTAGs\Data\D3\metadata\prh')
+% loadprh(tag);
+% %Load CTD
+% %CTD = readtable(''); % 
+% % inspect OTAB
+% settagpath('cal','D:\Raw\Azores_2021\MDTAGs\Data\D3\metadata\cals')
+% [CAL,DEPLOY,ufname] = d3loadcal(tag)
+% DEPLOY.OTAB
+% 
+% %% DEFINE DIVES 
+% % and make a summary table describing the characteristics of each dive.
+% 
+% % ES - used 2m as the threshold of the dive (surface) and 10m for dive definition (i.e. deep dive if below 10m)
+% % as in the IgorPro FindDives.ipf provided by Tomoko Narazaki (edited last 19 May 2016)
+% 
+% k=1:length(p);
+% mindivedef = 100;                       % AB - to exclude resting dives; where bouyancy is actively maintained. 
+% surface=7.5;                            % AB - increased due to longer body
+% T=finddives(p,fs,mindivedef,surface); 
+% D=[];                                   % [start_time(s) end_time(s) dive_duration(s) max_depth(s) max_depth(m) ID(n)]
+% D(:,1)=T(:,1);                          % start time of each dive in seconds since the tag on time
+% D(:,2)=T(:,2);                          % end time of each dive in seconds since the tag on time
+% D(:,3)=T(:,2)-T(:,1);                   % dive duration in seconds
+% D(:,4)=[T(2:end,1)-T(1:end-1,2);NaN];   % post-dive surface duration in seconds
+% D(:,5)=T(:,4);                          % time of the deepest point of each dive
+% D(:,6)=T(:,3);                          % maximum dive depth of each dive
+% D(:,7)=1*(1:size(T,1))';                % dive ID number, starting from 1
+% clear T
+% 
+% %4_DEFINE PRECISE DESCENT AND ASCENT PHASES 
+% Bottom=[];
+% Phase(1:length(p))=NaN;
+% DES=[];
+% ASC=[];
+% 
+% isdive = false(size(p));
+% for i = 1:size(D,1); isdive(round(D(i,1)*fs):round(D(i,2)*fs)) = true; end
+% pd = p; pnd = p; pd(~isdive) = nan; pnd(isdive) = nan;
+% I = 1:length(p);
+% figure(4); clf; 
+% sp1 = subplot(5,1,1:4)
+% plot(I,pd,'g'); hold on; plot(I,pnd,'r'); set(gca,'ydir','rev','ylim',[min(p) max(p)]);
+% tit = title('Click within the last dive you want to use');
+% legend('Dive','Not Dive','location','southeast');
+% sp2=subplot(5,1,5)
+% plot(I,pitch,'g');
+% legend('pitch')
+% x = ginput(1);
+% nnn = find(D(:,1)<x(1)/fs,1,'last');
+% 
+% for dive=1:nnn                                 % ES - Line added so as to only include until dive where clicked previously on dive profile
+%     kk=round(fs*D(dive,1)):round(fs*D(dive,2)); % it is selecting the whole dive
+%     %kkI = false(size(p)); kkI(kk) = true;
+%       %enddes=((find((smoothpitch(kk)*180/pi)>0,1,'first')+D(dive,1)*fs));% search for the first point at which pitch is positive
+%       %startasc=((find((smoothpitch(kk)*180/pi)<0,1,'last')+D(dive,1)*fs));%search for the last point at which the pitch is negative
+%     %    if you want to do it manually as some times there is a small ascent
+%     %     phase during the descent and a small descent phase during the ascent.
+%     figure(5)
+%     ax(1)=subplot(211); plott(p(kk),fs)	% plott plots sensor data against a time axis
+%     title(join("Dive: "+dive))
+%     ax(2)=subplot(212); plott(pitch(kk)*180/pi,fs,0)
+%     linkaxes(ax, 'x'); % links x axes of the subplots for zoom/pan
+%     [x,y]=ginput(2);	% click on where the pitch angle first goes to zero in the descent and last goes to zero in the ascent
+%     enddes=round(x(1))*fs+D(dive,1)*fs;         % ES - changed output names and multiples by fs to get correct time frame
+%     startasc=round(x(2))*fs+D(dive,1)*fs;       % ES - changed output names and multiples by fs to get correct time frame
+%     Phase(kk(kk<enddes))=-1; %Descent
+%     Phase(kk(kk<startasc & kk>enddes)) = 0 ; % Bottom
+%     Phase(kk(kk>startasc)) = 1 ; % Ascent
+%     Bottom(dive,1)=(enddes)/fs; %Time in seconds at the start of bottom phase (end of descent)
+%     Bottom(dive,2)= p(enddes);% Depth in m at the start of the bottom phase (end of descent phase)
+%     Bottom(dive,3)=(startasc)/fs;%Time in seconds at the end of bottom phase (start of ascent)
+%     Bottom(dive,4)= p(startasc);% Depth in m at the end of the bottom phase (start of ascent phase)
+%     des=round(fs*D(dive,1)):round(enddes);%selects the whole descent phase
+%     asc=round(startasc):round(fs*D(dive,2));%selects the whole ascent phase
+%     DES=[DES,des];                                               % Concats all descents
+%     ASC=[ASC,asc];                                               % Concats all descents
+% end
+% pasc = p; pdes = p;
+% pasc(Phase<1 | isnan(Phase)) = nan;
+% pdes(Phase>-1 | isnan(Phase)) = nan;
+% plot(sp1,pasc,'k'); plot(sp1,pdes,'b');
+% legend('Dive','Not Dive','Ascent','Descent');
+% delete(tit)
+% linkaxes([sp1 sp2], 'x');
+% 
+% dives_w_exclusions = []
+% 
+% % AB - exclude any periods? This lets you exclude foraging periods on the
+% % way up/down from glude:stroke ratio analyses
+%  for n = dives_w_exclusions % list dive IDs you want to exclude sections from, to exclude multiple sections, enter the dive twice
+%      kk=round(fs*D(n,1)):round(fs*D(n,2));
+%      figure(6)
+%      ax(1)=subplot(211); plott(p(kk),fs)	% plott plots sensor data against a time axis
+%      ax(2)=subplot(212); plott(pitch(kk)*180/pi,fs,0)
+%      linkaxes(ax, 'x'); % links x axes of the subplots for zoom/pan
+%      [x,y]=ginput(2);	% click on start and end of period to exclude
+%      start_exc = round(x(1))*fs+D(n,1)*fs;
+%      end_exc = round(x(2))*fs+D(n,1)*fs;
+%   
+%    Phase(kk(kk<end_exc & kk>start_exc)) = 0;
+%  end
+% isdive = false(size(p));
+% for i = 1:size(D,1); isdive(round(D(i,1)*fs):round(D(i,2)*fs)) = true; end
+% pd = p; pnd = p; pd(~isdive) = nan; pnd(isdive) = nan;
+% I = 1:length(p);
+% figure(4); clf; 
+% sp1 = subplot(5,1,1:3);
+% plot(I,pd,'g'); hold on; plot(I,pnd,'r'); set(gca,'ydir','rev','ylim',[min(p) max(p)]);
+% tit = title('Click within the last dive you want to use');
+% legend('Dive','Not Dive','location','southeast');
+% hold on
+% pasc = p; pdes = p;
+% pasc(Phase<1 | isnan(Phase)) = nan;
+% pdes(Phase>-1 | isnan(Phase)) = nan;
+% plot(pasc,'k'); plot(pdes,'b');
+% legend('Dive','Not Dive','Ascent','Descent','location','southeast');
+% delete(tit)
+% 
+% %% save asc/des cues here to avoid having to repeat manual classification
+% save(fullfile("D:\Data\BC_crossval\Glide_detection\", tag))
+tag='sw21_221a';   
 load(fullfile("D:\Data\BC_crossval\Glide_detection\", tag))
 
 %% 3.2_SEPARATE LOW AND HIGH ACCELERATION SIGNALS 
@@ -291,8 +291,8 @@ linkaxes(ax, 'x'); % links x axes of the subplots for zoom/pan
 % the low pass filter. f is a fraction of FR. You can set default value to
 % 0.4 or set f as fl (frequency at the negative peak in the
 % power spectral density plot)/FR.
-fluke_rate = mean(fluke_rate([4,5])); % Change indexing to calculate from a subset of the data (i.e only ascents)
-cutoff = mean(0.09) % Change indexing to calculate from a subset of the data (i.e only ascents)
+fluke_rate = 0.18; % Change indexing to calculate from a subset of the data (i.e only ascents)
+cutoff = mean(0.078) % Change indexing to calculate from a subset of the data (i.e only ascents)
 %or enter manually if the peak detection isn't working
 %fluke_rate = mean([0.1953,0.1953]);  % Change indexing to calculate from a subset of the data (i.e only ascents)
 f = cutoff/fluke_rate;
@@ -523,7 +523,7 @@ tmax=1/fluke_rate;%in seconds
 % 
 
 
-Jm = 0.0059;% in radians
+Jm = 0.0119;% in radians
 tmax=1/fluke_rate;%in seconds
 [~,pry,~,GLm,KKm] = magnet_rot_sa_AB(Aw,Mw,fs,cutoff,alpha,1,k,Jm,tmax,true);
 GLm(:,1) = GLm(:,1) + (1/fluke_rate)/4; % AB - add half the fluking period to the glide start time, does not produce negatives because glides already have to be > fluke period.
