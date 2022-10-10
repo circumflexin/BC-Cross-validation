@@ -1,0 +1,42 @@
+---
+title: "Models"
+author: "Alec Burslem"
+date: "06/10/2022"
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+---
+
+# Simplest possible model: 
+lipid store varies, everything else is perfectly allometric, 
+all lipid stores have equal density 
+$\rho_{w}$ Whale density
+$\rho{*}$ density of tissue compartment *
+
+
+
+$$
+\rho_{w} = \frac{ \rho_l \cdotp v_s + \rho_{l} \cdotp v_a + \rho_{\iota} \cdotp v_\iota}{v_s + v_a + v_\iota}
+$$
+$$
+\\ \therefore
+$$
+
+
+# Raw biuw (2003) model, incorporating Reilly & Fedak (1990)
+
+P = proportion
+l = lipid 
+b = bone ash
+bw = body_water
+
+TBL = 
+
+$$
+\rho_{w} = \frac{ \rho_l \cdotp v_s + \rho_{l} \cdotp v_a + \rho_{\iota} \cdotp v_\iota}{v_s + v_a + v_\iota} \\
+$$
+
+where:
+
+
