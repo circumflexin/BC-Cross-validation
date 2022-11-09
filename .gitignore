@@ -50,3 +50,5 @@ UAV photogrammetry/calibration/scaletest/
 UAV photogrammetry/calibration/JPEGView64/
 
 *.xlsx
+
+*.tif
