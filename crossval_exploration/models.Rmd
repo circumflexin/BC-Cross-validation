@@ -1,5 +1,5 @@
 ---
-title: "Models"
+title: "Models of animal tissue volume and density"
 author: "Alec Burslem"
 date: "06/10/2022"
 output:
@@ -8,35 +8,186 @@ output:
     df_print: paged
 ---
 
-# Simplest possible model: 
-lipid store varies, everything else is perfectly allometric, 
-all lipid stores have equal density 
-$\rho_{w}$ Whale density
-$\rho{*}$ density of tissue compartment *
 
 
 
-$$
-\rho_{w} = \frac{ \rho_l \cdotp v_s + \rho_{l} \cdotp v_a + \rho_{\iota} \cdotp v_\iota}{v_s + v_a + v_\iota}
-$$
-$$
-\\ \therefore
-$$
+
+P = proportion (by mass)  
+$\rho$ = density  
+M = mass  
+V = volume 
+
+### Subscripts:  
+
+l = lipid  
+p = protein  
+a = bone ash  
+w = water  
+c = tissue compartment (e.g. viscera)  
+$\iota$ = lean  
+t = total
 
 
-# Raw biuw (2003) model, incorporating Reilly & Fedak (1990)
-
-P = proportion
-l = lipid 
-b = bone ash
-bw = body_water
-
-TBL = 
+# Density of a compartmentalised* mixture:  
+\* i.e. assuming additive volumes 
 
 $$
-\rho_{w} = \frac{ \rho_l \cdotp v_s + \rho_{l} \cdotp v_a + \rho_{\iota} \cdotp v_\iota}{v_s + v_a + v_\iota} \\
+\rho_{seal} = \frac{\rho_{c1} \cdotp V_{c1} + \rho_{c2} \cdotp V_{c2}\ ... }{V_t}
 $$
 
-where:
+# Biuw (2003) model, incorporating Reilly & Fedak (1990)
+$$
+\rho_{w} = \rho_l \cdotp P_l + \rho_{p} \cdotp P_p + \rho_{a} \cdotp P_a + \rho_{w} \cdotp P_{w}\\
+$$
+I don't get it. These look like proportions by mass. Shouldn't they be by volume?
 
+# Model 1; model lean mass allometrically and estimate lipid volume.
+### Assumptions: 
+lipid store varies  
+lean mass is perfectly allometric,  
+all lipids have equal density.  
+
+So:
+
+
+$$M_\iota = \sum_{c=1}^c M_{c} \cdot P_{cp}  + M_c \cdot P_{ca}   + M_w \cdot P_{cw}$$
+
+$$V_\iota = \sum_{c=1}^c \frac{M_{c} \cdot P_{pc}}{\rho_p} + \frac{M_c \cdot P_{ac}}{\rho_a}   + \frac{M_w \cdot P_{wc}}{\rho_w} $$
+$$\rho_\iota = \frac{M_\iota}{V_\iota}$$
+Where:  
+$c = \{Muscle, Bone, Blood, Blubber, Viscera\}$
+
+
+
+$$\rho_t = \frac{M_l + M_\iota}{V_l + V_\iota} = \frac{V_l \cdot \rho_l + V_\iota \cdot \rho_\iota}{V_t}$$
+
+Solve for total body lipid volume:   
+$$V_l = \frac{\rho_t \cdot V_t - V_\iota \cdot \rho_\iota}{\rho_l}$$
+Then remove spermaceti
+
+$$ M_{la} = M_l - Vs \cdotp \rho_l$$
+## Pros and cons 
+
+### Pros:
+Uses all the avialable information
+Closed form solution
+Allows all measurement uncertainties to be modelled
+
+### Cons:
+what about blubber water? Constrain to be correlated? 
+
+### Modifications / extentions  
+
+
+
+# Model 2; allometric core structural mass, estimate density of material added.  
+
+Could allow us to get at the muscle vs fat question, but more subjective parameterisation. 
+
+
+# Model 3: Estimate lipid:water ratio from total body tissue density
+assumes relationship for elephant seals broadly generalizes to other marine mammals  
+
+
+
+
+# As code
+
+```{r}
+# to do: verbose output 
+
+
+
+# density values from Vogel 1981(g cm^-3)
+rho = list(
+  l = 0.9007,
+  p = 1.340,
+  a = 2.300,
+  w = 0.994)
+
+L = 12 # length (m)
+
+
+# composition by mass (metric tonnes per foot; Omura, 1950)
+# M_c = [1]*Lf^[2]
+M = list(
+  muscle = c(0.0000367, 3.24),
+  blubber = c(0.0000452, 3.18),
+  bone = c(0.000041, 2.88),
+  viscera = c(0.0038, 1.64)#,
+
+  )
+  
+#blood: 2285L for a 11.95m^3 / 11.35 tonne / 10.34 m animal 
+
+# compartment tissue composition (%)
+P = list(
+  #Lockyer et al.(1991)
+  muscle = list( 
+    l = 2.88,
+    p = 26.29, 
+    a = 1.12, 
+    w = 71.72
+    # carbs = 0.97,
+  ),
+  #Lockyer et al.(1991): rough
+  viscera = list(
+    l = 3,
+    p = 18, 
+    a = 1, 
+    w = 70
+  ),
+  # placeholder
+  blood = list(
+    l = 0,
+    p = 0, 
+    a = 1, 
+    w = 99
+  ),
+  # Tont et al. (1977)
+    bone = list(
+    l = 0,
+    p = 0, 
+    a = 1, 
+    w = 99
+  )
+)
+
+# generalisation of models 
+c = c("muscle", "viscera", "bone")
+s = c("p", "a", "w")
+
+#breakdown = function(L,comp_tis_comp,c, P){
+for(c_i in c){
+  message(c_i)
+  Lf = L * 3.28084 # m to ft. 
+  M_c = M[[c_i]][1]*Lf^M[[c_i]][2]
+  M_c = M_c *10^3 # metric tonnes to kg
+  M_t = c()  
+  V_t = c()
+  P_t = c()
+  for(s_i in s){
+    #message(s_i)
+    P_cs = P[[c_i]][[s_i]]/100
+    M_s = M_c * P_cs# mass (kg)
+    V_s = M_s/rho[[s_i]]*10^-3 # volume (m^3)
+    M_t = append(M_t, M_s)
+    V_t = append(V_t,V_s)
+    P_t = append(P_t,P_cs)
+  }
+  check = 1-sum(P_t)
+  #if(check > 0){
+    message(paste(check*100, "% not accounted for", sep = ""))
+  #}
+  # collapse
+  M_tt = sum(M_t)
+  V_tt = sum(V_t)
+  rho_tt = M_t/V_t
+}
+
+#}
+
+#get_lean_vol(L, comp_tis_comp, c, P)
+
+```
 
