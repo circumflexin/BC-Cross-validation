@@ -34,8 +34,8 @@ bathy_effort = ggplot(az, aes(x=x, y=y))+
                breaks=c(-300, -500, -1000, -1500, -2000), colour="grey", size=0.2, alpha = 1) +
   geom_contour(aes(z=z),
                breaks=c(0), colour="black", size=1, alpha = 1)+
-  geom_point(data = CTD, aes(x = Long, y = Lat), shape = 21, colour = "black", size = 2, stroke = 1.5)+
-  geom_point(data = TAGS, aes(x = Lon, y = Lat), size = 2, color = "yellow")+
+  geom_point(data = CTD, aes(x = Long, y = Lat), shape = 21, colour = "black", fill = "white", size = 1.5, stroke = 1.2)+
+  geom_point(data = TAGS, aes(x = Lon, y = Lat), shape = 21, color = "black", fill = "yellow", size = 2)+
   geom_point(data = UAV, aes(x = Lon, y = Lat), shape = 25, size = 2, colour = "#c72f17", stroke = 1, inherit.aes = FALSE)
 
 
